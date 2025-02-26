@@ -79,7 +79,7 @@ fn create_hex_dump(file: &[u8], options: &HexDumpOptions) -> Vec<String> {
             let byte_offset = index * options.cols + offset;
             let hex_string = get_block_hex_string(block, options);
             let ascii_value = get_block_ascii_value(block);
-            format!("{byte_offset:08x}: {hex_string} {ascii_value}")
+            format!("{byte_offset:08x}: {hex_string}  {ascii_value}")
         })
         .collect()
 }
@@ -91,24 +91,23 @@ fn get_block_hex_string(block: &[u8], options: &HexDumpOptions) -> String {
         options.group_size
     };
 
-    block
+    let expected_groups = options.cols / group_size;
+    let width = group_size * 2;
+
+    let mut groups: Vec<String> = block
         .chunks(group_size)
         .map(|group| {
-            if options.little_endian {
-                group
-                    .iter()
-                    .rev()
-                    .map(|&b| byte_to_hex_string(b))
-                    .collect::<String>()
+            let hex_string: String = if options.little_endian {
+                group.iter().rev().map(|&b| byte_to_hex_string(b)).collect()
             } else {
-                group
-                    .iter()
-                    .map(|&b| byte_to_hex_string(b))
-                    .collect::<String>()
-            }
+                group.iter().map(|&b| byte_to_hex_string(b)).collect()
+            };
+            format!("{:<width$}", hex_string, width = width)
         })
-        .collect::<Vec<String>>()
-        .join(" ")
+        .collect();
+
+    groups.resize(expected_groups, format!("{:<width$}", "", width = width));
+    groups.join(" ")
 }
 
 fn get_block_ascii_value(block: &[u8]) -> String {
