@@ -144,3 +144,22 @@ fn test_should_display_exact_content_with_seek_and_length_options() {
             "00000002: 6c6c 6f20 77                             llo w",
         ));
 }
+
+#[test]
+fn test_should_revert_an_hex_dump_file() {
+    let mut tmp_file = NamedTempFile::new().expect("failed to create temp file");
+    write!(
+        tmp_file,
+        "00000000: 6865 6c6c  hell
+    00000004: 6f20 776f  o wo
+    00000008: 726c 64    rld"
+    )
+    .expect("failed to write to temp file");
+
+    let mut cmd = Command::cargo_bin("cxxd").expect("binary exists");
+    cmd.arg(tmp_file.path())
+        .args(["-r"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("hello world"));
+}

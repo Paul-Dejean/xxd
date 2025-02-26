@@ -1,3 +1,8 @@
+use std::{
+    fs::File,
+    io::{BufRead, BufReader, Write},
+};
+
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -27,9 +32,30 @@ pub struct Args {
 
     #[arg(short = 's', long = "seek", default_value_t = 0)]
     seek: i32,
+
+    #[arg(short = 'r', long = "revert")]
+    revert: bool,
 }
 
 pub fn execute_command(args: &Args) -> i32 {
+    if args.revert {
+        let result = extract_data_from_hex_dump(&args.file);
+        let data = match result {
+            Ok(data) => data,
+            Err(error) => {
+                eprintln!("Error extracting data from hex dump: {}", error);
+                return 1;
+            }
+        };
+        match std::io::stdout().write_all(&data) {
+            Ok(_) => return 0,
+            Err(error) => {
+                eprintln!("Error writing data to stdout: {}", error);
+                return 1;
+            }
+        }
+    }
+
     let file = match std::fs::read(&args.file) {
         Ok(file) => file,
         Err(error) => {
@@ -57,6 +83,57 @@ struct HexDumpOptions {
     cols: usize,
     length: Option<usize>,
     seek: i32,
+}
+
+fn extract_data_from_hex_dump(file_path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let file =
+        File::open(&file_path).map_err(|e| format!("Error opening file '{}': {}", file_path, e))?;
+    let reader = BufReader::new(file);
+
+    let mut data = Vec::new();
+
+    for line in reader.lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let line_bytes = get_line_bytes(&line)?;
+        data.extend(line_bytes);
+    }
+    Ok(data)
+}
+
+fn get_line_bytes(line: &str) -> Result<Vec<u8>, String> {
+    let (_, hex_string, _) = parse_hex_dump_line(&line).map_err(|e| e.to_string())?;
+
+    let bytes_str: String = hex_string.chars().filter(|c| !c.is_whitespace()).collect();
+
+    let mut bytes = Vec::with_capacity(bytes_str.len() / 2);
+    for i in (0..bytes_str.len()).step_by(2) {
+        let byte_str = &bytes_str[i..i + 2];
+        match u8::from_str_radix(byte_str, 16) {
+            Ok(byte) => bytes.push(byte),
+            Err(e) => return Err(format!("Error parsing '{}': {}", byte_str, e)),
+        }
+    }
+
+    Ok(bytes)
+}
+
+fn parse_hex_dump_line(line: &str) -> Result<(String, String, String), Box<dyn std::error::Error>> {
+    let (index, remainder) = match line.split_once(':') {
+        Some((index, remainder)) => (index, remainder),
+        None => return Err("Invalid line format".into()),
+    };
+    let (hex_string, ascii_string) = match remainder.split_once("  ") {
+        Some((hex_string, ascii_string)) => (hex_string, ascii_string),
+        None => return Err("Invalid line format".into()),
+    };
+    return Ok((
+        index.to_string(),
+        hex_string.to_string(),
+        ascii_string.to_string(),
+    ));
 }
 
 fn create_hex_dump(file: &[u8], options: &HexDumpOptions) -> Vec<String> {
