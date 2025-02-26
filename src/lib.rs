@@ -7,7 +7,7 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(name = "cxxd")]
-#[command(author = "Ebooth <pauldejeandev@gmail.com>")]
+#[command(author = "Paul Dejean <pauldejeandev@gmail.com>")]
 #[command(version = "1.0")]
 #[command(about = "A copy of unix command line tool xxd", long_about = None)]
 pub struct Args {
